@@ -1,0 +1,544 @@
+---
+title: "Data621 Proj1"
+NAME: NNAEMEZUE OBIEYISI
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+#BUILDING A MULTIPLE LINEAR REGRESSION MODEL TO PREDICT NUMBER OF WINS OF A TEAM IN BASEBALL
+
+#INTRODUCTION
+
+The goal of this project is to explore, analyze and model the moneyball data set containing approximately 2200 records with 15 
+dependent variables. Each record represents a professional baseball team from the years 1871 to 2006 inclusive. Each record
+has the performance of the team for the given year, with all of the statistics adjusted to match the performance of
+a 162 game season.
+
+
+#DATA EXPLORATION
+
+
+
+```{r import_data, echo=FALSE}
+
+train <- read.csv("https://raw.githubusercontent.com/nobieyi00/CUNY_DATA621/master/moneyball-training-data.csv", header= TRUE)
+```
+We would start off by previewing the top 10 records in the data. This helps us see what kind of data types and data values we have in our dataset. 
+```{r preview_data, echo=FALSE}
+head(train, n=4)
+```
+
+From the preview, we notice that most fields are populated and mostly have numeric data.
+
+We can gather some summary statistics on the dataset especially on all predictor variables as shown below
+```{r summary_data, echo=FALSE}
+# Insert your code here, create more chunks as necessary
+if(!(c("psych") %in% rownames(installed.packages()))) {install.packages('psych')}
+library(psych)
+describe(train)
+
+```
+
+Looking at the min and max value of the variables we can see that some are plausible while others aren't. We would rely on the outlier analysis to nail them out.
+
+Outlier analysis, by looking at the median and mean values for each variable we notice that there might be outlier in TEAM_PITCHING_H variable because the mean is 1779.21 and median is 1518.0. Also, we see the same inTEAM_FIELDING_E where there is a big difference between the mean and median values. From the summary stats we also see some huge skew in the TEAM_PITCHING_H,TEAM_PITCHING_BB  and TEAM_PITCHING_SO variable
+
+Missing values analysis
+```{r summary_missing_data, echo=FALSE}
+summary(train)
+```
+
+
+
+Summary of the data shows that there are NA's in 
+TEAM_BATTING_SO -102 (4.5%) 
+TEAM_BASERUN_SB -131 (5.7%)
+TEAM_BASERUN_CS -772(34%)
+TEAM_BATTING_HBP-2085 (92%)
+TEAM_PITCHING_SO -102 (4.5%)
+TEAM_FIELDING_DP-286 (12.5%)
+
+From our analysis it is advisable to drop the TEAM_BATTING_HBP variable from our model because 92% of the data points is missing
+
+But we should strive to impute the other variables when missing.
+
+DIstribution of predictor variables with box plot
+```{r boxplot_variables, echo=FALSE}
+boxplot(train$TEAM_BATTING_H,data=train, main="TEAM_BATTING_H" )
+boxplot(train$TEAM_BATTING_3B,main="TEAM_BATTING_3B")
+boxplot(train$TEAM_PITCHING_H, main="TEAM_PITCHING_H")
+boxplot(train$TEAM_FIELDING_E, main ='TEAM_FIELDING_E')
+```
+We can see that we have a lot of outliers with TEAM_PITCHING_H and TEAM_FIELDING_E variables like predicted from mean and median comparison
+
+
+Let's do some univariate analysis to verify some of the these variables and their correlation to the target wins
+We can see positive correlation
+```{r correlation_variables, echo=FALSE}
+plot(train$TEAM_BATTING_H, train$TARGET_WINS)
+abline(lm(train$TARGET_WINS~train$TEAM_BATTING_H), col="red")
+
+
+
+plot(train$TEAM_BATTING_2B, train$TARGET_WINS)
+abline(lm(train$TARGET_WINS~train$TEAM_BATTING_2B), col="red")
+
+
+
+plot(train$TEAM_BATTING_HR, train$TARGET_WINS)
+abline(lm(train$TARGET_WINS~train$TEAM_BATTING_HR), col="red")
+
+plot(train$TEAM_BATTING_BB, train$TARGET_WINS)
+abline(lm(train$TARGET_WINS~train$TEAM_BATTING_BB), col="red")
+
+plot(train$TEAM_BATTING_SO, train$TARGET_WINS)
+abline(lm(train$TARGET_WINS~train$TEAM_BATTING_SO), col="red")
+
+plot(train$TEAM_BASERUN_SB, train$TARGET_WINS)
+abline(lm(train$TARGET_WINS~train$TEAM_BASERUN_SB), col="red")
+
+plot(train$TEAM_BASERUN_CS, train$TARGET_WINS)
+abline(lm(train$TARGET_WINS~train$TEAM_BASERUN_CS), col="red")
+
+plot(train$TEAM_BATTING_HBP, train$TARGET_WINS)
+abline(lm(train$TARGET_WINS~train$TEAM_BATTING_HBP), col="red")
+
+plot(train$TEAM_PITCHING_H, train$TARGET_WINS)
+abline(lm(train$TARGET_WINS~train$TEAM_PITCHING_H), col="red")
+
+plot(train$TEAM_PITCHING_HR, train$TARGET_WINS)
+abline(lm(train$TARGET_WINS~train$TEAM_PITCHING_HR), col="red")
+
+plot(train$TEAM_PITCHING_BB, train$TARGET_WINS)
+abline(lm(train$TARGET_WINS~train$TEAM_PITCHING_BB), col="red")
+
+plot(train$TEAM_PITCHING_SO, train$TARGET_WINS)
+abline(lm(train$TARGET_WINS~train$TEAM_PITCHING_SO), col="red")
+
+plot(train$TEAM_FIELDING_E, train$TARGET_WINS)
+abline(lm(train$TARGET_WINS~train$TEAM_FIELDING_E), col="red")
+
+plot(train$TEAM_FIELDING_DP, train$TARGET_WINS)
+abline(lm(train$TARGET_WINS~train$TEAM_FIELDING_DP), col="red")
+
+#cor(train)
+
+
+
+```
+
+
+
+positive correlation feilds  are 
+1. TEAM_BATHING_H
+2. TEAM_BATTING_2B
+3. TEAM_BATTING_HR VERY WEAK
+4. TEAM_BATTING_BB WEAK
+5. TEAM_BASErUN_SB VERY WEAK
+6. TEAM_BATTING_HBP EXTREMELY WEAK IGNORE
+7. TEAM_PITCHING_HR WEAK IGNORE THIS IS MISLEADING, IT SHOULD BE NEGATIVE. WHAT DO WE DO HERE?
+8. TEAM_PITCHING_BB IGNORE THIS IS MISLEADING, IT SHOULD BE NEGATIVE. WHAT DO WE DO HERE?
+
+NEGATIVE CORRELATION FIELDS ARE
+1. TEAM_BATTING_SO VERY WEAK
+2. TEAM_BASERUN_CS EXTREMELY WEAK
+3. TEAM_PITCHING_H 
+4. TEAM_PITCHING_so IGNORE THIS IS MISLEADING, IT SHOULD BE POSITIVE. WHAT DO WE DO HERE?
+5. TEAM_FIELDING_e
+6. tEAM_FIELDING_DP EXTREMELY WEAK IGNORE THIS IS MISLEADING, IT SHOULD BE POSITIVE. WHAT DO WE DO HERE?
+
+
+
+Collinearity study between various predictor variables
+```{r collinearity_variables, echo=FALSE}
+
+
+
+pairs(~train$TEAM_BATTING_H+TEAM_BATTING_2B+TEAM_BATTING_HR, data= train)
+
+pairs(~train$TEAM_BATTING_BB+TEAM_BATTING_HBP+TEAM_BATTING_SO, data= train)
+
+pairs(~train$TEAM_BASERUN_SB+TEAM_BASERUN_CS+TEAM_FIELDING_E, data= train)
+
+pairs(~train$TEAM_FIELDING_DP+TEAM_PITCHING_BB+TEAM_PITCHING_H, data= train)
+
+pairs(~train$TEAM_PITCHING_HR+TEAM_PITCHING_SO+TEAM_BATTING_H, data= train)
+
+
+```
+
+
+
+We see linear relationship between TEAM_BATTING_H and TEAM_BATTING_2B
+We also see it in TEAM_BASERUN_SB and TEAM_BASERUN_CS
+
+
+```{r Heteroscedasticity_variables, echo=FALSE}
+
+#rESIDUAL PLOTS
+plot(train$TEAM_BATTING_H, resid(lm(train$TARGET_WINS~train$TEAM_BATTING_H))) 
+abline(0, 0)  
+
+plot(train$TEAM_BATTING_2B, resid(lm(train$TARGET_WINS~train$TEAM_BATTING_2B))) 
+abline(0, 0)  
+
+plot(train$TEAM_BATTING_HR, resid(lm(train$TARGET_WINS~train$TEAM_BATTING_HR))) 
+abline(0, 0)    
+
+#Lets transform TEAM_BATTING_HR due to heteroscedacity by taking the log, but we have to clear out the zero values
+
+#plot(log(train$TEAM_BATTING_HR), resid(lm(train$TARGET_WINS~log(train$TEAM_BATTING_HR)))) 
+#abline(0, 0) 
+
+
+plot(train$TEAM_BATTING_BB, resid(lm(train$TARGET_WINS~train$TEAM_BATTING_BB))) 
+abline(0, 0)  
+
+
+
+#plot(train$TEAM_BATTING_SO, resid(lm(train$TARGET_WINS~train$TEAM_BATTING_SO))) 
+#abline(0, 0) 
+
+#plot(train$TEAM_BASERUN_SB, resid(lm(train$TARGET_WINS~train$TEAM_BASERUN_SB))) 
+#abline(0, 0)  
+
+#plot(train$TEAM_BASERUN_CS, resid(lm(train$TARGET_WINS~train$TEAM_BASERUN_CS))) 
+#abline(0, 0) 
+
+
+#plot(train$TEAM_BATTING_HBP, resid(lm(train$TARGET_WINS~train$TEAM_BATTING_HBP))) 
+#abline(0, 0) 
+
+plot(train$TEAM_PITCHING_H, resid(lm(train$TARGET_WINS~train$TEAM_PITCHING_H))) 
+abline(0, 0) 
+
+plot(train$TEAM_PITCHING_HR, resid(lm(train$TARGET_WINS~train$TEAM_PITCHING_HR))) 
+abline(0, 0) 
+
+plot(train$TEAM_PITCHING_BB, resid(lm(train$TARGET_WINS~train$TEAM_PITCHING_BB))) 
+abline(0, 0) 
+
+#plot(train$TEAM_PITCHING_SO, resid(lm(train$TARGET_WINS~train$TEAM_PITCHING_SO))) 
+#abline(0, 0) 
+
+plot(train$TEAM_FIELDING_E, resid(lm(train$TARGET_WINS~train$TEAM_FIELDING_E))) 
+abline(0, 0)
+
+#plot(train$TEAM_FIELDING_DP, resid(lm(train$TARGET_WINS~train$TEAM_FIELDING_DP))) 
+#abline(0, 0)
+```
+
+fOR THE TEAM_BATTING_HR we notice some Heteroscedasticity, there is higher variance at the lower end of the variable.
+fOR THE TEAM_BATTING_BB we notice some Heteroscedasticity, there is higher variance at the lower end of the variable.
+fOR THE TEAM_PITCHING_H we notice some Heteroscedasticity, there is higher variance at the lower end of the variable.
+fOR THE TEAM_PITCHING_HR we notice some Heteroscedasticity, there is higher variance at the lower end of the variable.
+fOR THE TEAM_PITCHING_bb we notice some Heteroscedasticity, there is higher variance at the lower end of the variable.
+
+
+#DATA PREPARATION
+
+a) We start by creating a new variable TEAM_BATTING_1B
+
+This variable is gotten by TEAM_BATTING_1B = TEAM_BATTING_H - (TEAM_BATTING_2B+TEAM_BATTING_3B+TEAM_BATTING_HR). This new variable
+helps solve the collinearity between TEAM_BATTING_H and TEAM_BATTING_2B. We can savely use TEAM_BATTING_1B instead of TEAM_BATTING_H
+
+```{r New_variable, echo=FALSE}
+train$TEAM_BATTING_1B = train$TEAM_BATTING_H - (train$TEAM_BATTING_2B+train$TEAM_BATTING_3B+train$TEAM_BATTING_HR)
+
+pairs(~train$TEAM_BATTING_1B+TEAM_BATTING_2B+TEAM_BATTING_H, data= train)
+```
+
+b) Removal of Variables because of collinearity and missing values
+
+1. TEAM_BATTING_H- This variable is dropped because we created a replacement for it with TEAM_BATTING_1B. TEAM_BATTING_1B is not collinear with  TEAM_BATTING_2B variable.
+
+2. TEAM_BATTING_HBP- This variable is dropped because of the amount of missing data (92%) and has a very weak correlation to our response variable
+
+3. TEAM_BASERUN_CS - This variable is strongly correlated to TEAM_BASERUN_SB, so we decided to drop it. It has a very weak correlation to our response variable
+
+4. TEAM_FIELDING_DP - It has a very weak correlation to the response variable and opposite to the theoretical expectation
+
+c) Impute Missing values for the variables with NA's
+
+After removing some variables the 3 variables below are the ones available for missing value imputation. We would use the median value for replacement
+
+TEAM_BATTING_SO -102 (4.5%) 
+TEAM_BASERUN_SB -131 (5.7%)
+TEAM_PITCHING_SO -102 (4.5%)
+
+```{r Missing_data_imputation, echo=FALSE}
+
+drops <- c("TEAM_BATTING_H","TEAM_BATTING_HBP",'TEAM_BASERUN_CS','TEAM_FIELDING_DP')
+train2 =train[ , !(names(train) %in% drops)]
+
+
+train2[is.na(train2$TEAM_BATTING_SO),7] <-median(train2$TEAM_BATTING_SO, na.rm=TRUE)
+train2[is.na(train2$TEAM_BASERUN_SB),8] <-median(train2$TEAM_BASERUN_SB, na.rm=TRUE)
+train2[is.na(train2$TEAM_PITCHING_SO),12] <-median(train2$TEAM_PITCHING_SO, na.rm=TRUE)
+summary(train2)
+```
+
+c) Transforming Variables
+
+To figure out variable that need to be transformed we resorted to analyzing their residual plots and the correlation results from the Data Exploration section
+```{r Heteroscedasticity_variables_2, echo=FALSE}
+
+#rESIDUAL PLOTS
+plot(train2$TEAM_BATTING_1B, resid(lm(train2$TARGET_WINS~train2$TEAM_BATTING_1B))) 
+abline(0, 0)  
+
+plot(train2$TEAM_BATTING_2B, resid(lm(train2$TARGET_WINS~train2$TEAM_BATTING_2B))) 
+abline(0, 0)  
+
+plot(train2$TEAM_BATTING_3B, resid(lm(train2$TARGET_WINS~train2$TEAM_BATTING_3B))) 
+abline(0, 0)  
+
+plot(train2$TEAM_BATTING_HR, resid(lm(train2$TARGET_WINS~train2$TEAM_BATTING_HR))) 
+abline(0, 0)    
+
+#Lets transform TEAM_BATTING_HR due to heteroscedacity by taking the log, but we have to clear out the zero values
+
+#plot(log(train$TEAM_BATTING_HR), resid(lm(train$TARGET_WINS~log(train$TEAM_BATTING_HR)))) 
+#abline(0, 0) 
+
+
+plot(train2$TEAM_BATTING_BB, resid(lm(train2$TARGET_WINS~train2$TEAM_BATTING_BB))) 
+abline(0, 0)  
+
+
+
+plot(train2$TEAM_BATTING_SO, resid(lm(train2$TARGET_WINS~train2$TEAM_BATTING_SO))) 
+abline(0, 0) 
+
+#plot(log(train2$TEAM_BATTING_SO), resid(lm(train2$TARGET_WINS~log(train2$TEAM_BATTING_SO)))) 
+#abline(0, 0) 
+
+plot(train2$TEAM_BASERUN_SB, resid(lm(train2$TARGET_WINS~train2$TEAM_BASERUN_SB))) 
+abline(0, 0)  
+
+
+
+
+plot(train2$TEAM_PITCHING_HR, resid(lm(train2$TARGET_WINS~train2$TEAM_PITCHING_HR))) 
+abline(0, 0) 
+
+plot(train2$TEAM_PITCHING_BB, resid(lm(train2$TARGET_WINS~train2$TEAM_PITCHING_BB))) 
+abline(0, 0) 
+
+plot(train2$TEAM_PITCHING_SO, resid(lm(train2$TARGET_WINS~train2$TEAM_PITCHING_SO))) 
+abline(0, 0) 
+
+plot(train2$TEAM_FIELDING_E, resid(lm(train2$TARGET_WINS~train2$TEAM_FIELDING_E))) 
+abline(0, 0)
+
+
+
+```
+
+fOR THE TEAM_PITCHING_bb we notice some Heteroscedasticity, there is higher variance at the lower end of the variable.
+fOR THE TEAM_PITCHING_SO we notice some Heteroscedasticity, there is higher variance at the lower end of the variable.
+
+
+fOR THE TEAM_PITCHING_H we notice some Heteroscedasticity, there is higher variance at the lower end of the variable.
+Lets try mulitple transformations to see what is best. In this case we will try, log transform, square root and reciprocal transfomration
+```{r transform_TEAM_PITCHING_H, echo=FALSE}
+plot(train2$TEAM_PITCHING_H, resid(lm(train2$TARGET_WINS~train2$TEAM_PITCHING_H))) 
+abline(0, 0) 
+
+plot(log(train2$TEAM_PITCHING_H), resid(lm(train2$TARGET_WINS~log(train2$TEAM_PITCHING_H)))) 
+abline(0, 0) 
+
+plot(sqrt(train2$TEAM_PITCHING_H), resid(lm(train2$TARGET_WINS~sqrt(train2$TEAM_PITCHING_H)))) 
+abline(0, 0) 
+
+plot(1/(train2$TEAM_PITCHING_H), resid(lm(train2$TARGET_WINS~1/(train2$TEAM_PITCHING_H)))) 
+abline(0, 0) 
+
+#summary(train2)
+```
+We can se that the reciprocal transformation gave the best residual plot
+
+
+#BUILD MODELS
+
+
+
+a) MODEL 1
+
+In this model, we try to use all the base variables excluding the variables that we identified earlier as problematic due to collinearity and sparsity.
+
+```{r model_1, echo=FALSE}
+fit1 <- lm(TARGET_WINS ~ TEAM_BATTING_2B + TEAM_BATTING_3B + TEAM_BATTING_HR + TEAM_BATTING_BB + TEAM_BATTING_SO 
+           +  TEAM_BASERUN_SB + TEAM_PITCHING_H + TEAM_PITCHING_HR + TEAM_PITCHING_BB + TEAM_PITCHING_SO + TEAM_FIELDING_E
+           +TEAM_BATTING_1B, data=train2)
+summary(fit1)
+plot(fit1)
+```
+
+
+
+We get an Adjusted Rsquared of 0.2845. From the plot we also notice the non linearity in the dataset
+In using all our variables in first attempt to fit our model. We can see that TEAM_BATTING_BB, TEAM_PITCHING_HR,TEAM_PITCHING_BB are not significant.
+
+We can go ahead and remove these variables
+```{r model_1.2, echo=FALSE}
+fit1.2 <- lm(TARGET_WINS ~ TEAM_BATTING_2B + TEAM_BATTING_3B + TEAM_BATTING_HR + TEAM_BATTING_SO 
+           +  TEAM_BASERUN_SB + TEAM_PITCHING_H + TEAM_PITCHING_SO + TEAM_FIELDING_E
+           +TEAM_BATTING_1B, data=train2)
+summary(fit1.2)
+layout(matrix(c(1,2,3,4),2,2)) # optional 4 graphs/page 
+plot(fit1.2)
+
+ 
+
+```
+
+
+
+We can see that the correlation coefficients align of the variables align to the theoritical expectation. Though one might expect a stronger effect of some variables like the TEAM_PITCHING_H and TEAM_PITCHING_BB. We also see that the Residual vs Fitted plot is much more distributed and linear looking. We also get an Adjusted R-squared of 0.2847
+
+b) MODEL 2
+In this model we would be using the transformed variable TEAM_PITCHING_H reciprocal to model. We hope to see an improved fit. 
+We also decided to introduce an interaction between the TEAM_PITCHING_SO * TEAM_FIELDING_E
+
+```{r model_2, echo=FALSE}
+fit2 <- lm(TARGET_WINS ~ TEAM_BATTING_2B + TEAM_BATTING_3B + TEAM_BATTING_HR + TEAM_BATTING_BB + TEAM_BATTING_SO 
+           +  TEAM_BASERUN_SB + (1/TEAM_PITCHING_H) + TEAM_PITCHING_HR + TEAM_PITCHING_BB +
+             TEAM_BATTING_1B   +  TEAM_PITCHING_SO*TEAM_FIELDING_E, data=train2)
+summary(fit2)
+plot(fit2)
+
+```
+
+\
+
+We can see that the we got an increase in Adjusted R-squared of 0.2907. However, we have some non significant variables in TEAM_PITCHING_HR. This needs to be removed and we see some non linearity in the residual plot
+
+Removing the reciprocal transformation on the TEAM_PITCHING_H gives a better fit.
+
+```{r model_2.1, echo=FALSE}
+fit2.1 <- lm(TARGET_WINS ~ TEAM_BATTING_2B + TEAM_BATTING_3B + TEAM_BATTING_HR + TEAM_BATTING_BB + TEAM_BATTING_SO 
+           +  TEAM_BASERUN_SB + (1/TEAM_PITCHING_H)  + TEAM_PITCHING_BB +
+             TEAM_BATTING_1B   +  TEAM_PITCHING_SO*TEAM_FIELDING_E, data=train2)
+summary(fit2.1)
+plot(fit2.1)
+
+```
+
+Even though we have a better fit of Adjusted Rsquared of 0.291. We notice the interaction has a weak coefficient in our model. We also notice that the residual vs fitted plot is more non linear than model 1. This might be due to the interaction of the two variables overfitting the model
+
+
+##MODEL 3
+
+In this model we would improve on the iterated version of model 1. Focusing on only the variables that matter but we would introduce some new interactions between variables.
+
+In this case we create an interaction between  TEAM_PITCHING_SO and TEAM_FIELDING_E. This makes sense in real world because a fielding error could lead to strike outs
+```{r model_3, echo=FALSE}
+
+fit3 <- lm(TARGET_WINS ~ TEAM_BATTING_2B + TEAM_BATTING_3B + TEAM_BATTING_HR + TEAM_BATTING_SO 
+           +  TEAM_BASERUN_SB + TEAM_PITCHING_H + TEAM_PITCHING_SO * TEAM_FIELDING_E
+           +TEAM_BATTING_1B, data=train2)
+summary(fit3)
+plot(fit3)
+```
+We see an increase in the Adjusted Rsquared of 0.2905 and all the variables are significant.
+However we notice that our model is a little bit more non linear when looking at the residual plot, which might be a hint for over fitting.
+
+
+
+#SELECT MODELS
+
+We can compare the 3 models by analyzing the model summary statistics and plots
+
+MODEL 1
+Residual standard error: 13.32 on 2266 degrees of freedom
+Multiple R-squared:  0.2876,	Adjusted R-squared:  0.2847 
+F-statistic: 101.6 on 9 and 2266 DF,  p-value: < 2.2e-16
+
+MODEL 2
+Residual standard error: 13.25 on 2263 degrees of freedom
+Multiple R-squared:  0.2958,	Adjusted R-squared:  0.2921 
+F-statistic: 79.23 on 12 and 2263 DF,  p-value: < 2.2e-16
+
+MODEL 3
+Residual standard error: 13.27 on 2265 degrees of freedom
+Multiple R-squared:  0.2937,	Adjusted R-squared:  0.2905 
+F-statistic: 94.17 on 10 and 2265 DF,  p-value: < 2.2e-16
+
+i choose the MODEL 1 because out of all 3 models it has the highest F-statistic. F-statistico we can reject null hypothesis and say that overall addition of variables is significantly improving the model.
+Analyzing the multicollinearity between models 1-3 we see that the MODEL 1 had all the predicts with good significance levels(p-values).
+We can also see that in Model 1 even though we have a lower Adjusted R^2 the coefficients of the correlation in each predictor is much stronger and significant.
+When analyzing the thoeritical interpretation of the summary of the MODEL 1 we notice that all variables follow common intuition and match the theoritical expectation
+
+Another important value to consider is the predicted R square. Let's calculate it for the 3 models
+```{r pred_r, echo=FALSE}
+pred_r_squared <- function(linear.model) {
+    lm.anova <- anova(linear.model)
+    tss <- sum(lm.anova$"Sum Sq")
+    # predictive R^2
+    pred.r.squared <- 1 - PRESS(linear.model)/(tss)
+    return(pred.r.squared)
+}
+
+PRESS <- function(linear.model) {
+    pr <- residuals(linear.model)/(1 - lm.influence(linear.model)$hat)
+    PRESS <- sum(pr^2)
+    return(PRESS)
+}
+pred.r.squared_model1 <- pred_r_squared(fit1.2)
+pred.r.squared_model1
+
+pred.r.squared_model2 <- pred_r_squared(fit2.1)
+pred.r.squared_model2
+
+pred.r.squared_model3 <- pred_r_squared(fit3)
+pred.r.squared_model3
+
+
+
+```
+##Comparing models
+```{r cmp_model, echo=FALSE}
+anova(fit1.2, fit2.1, fit3)
+```
+
+
+Since the Adjusted R squared of model 1 is 0.2847. We can say that (0.2847-0.2687) 1.6% of our model is explained by too many factors and random correlations. This is a small percentage.
+For Model 2. The predicted Rsquared is 0.275, but when we calculate model variablility is is 1.7% which is more than model 1
+For Model 3, the predicted Rsquared is 0.2905 but when we calculate model variablility is is 0.9% which is less than model 1
+
+We still stick to MODEL 1 becuase of the residual plot is linear and normally distributed
+
+#EVALUATING chosen MODEL 
+
+```{r eval_model, echo=FALSE}
+summary(fit1.2)
+plot(fit1.2)
+```
+
+
+
+##Evaluating model with Test data set
+
+```{r model_results , echo=FALSE}
+evaluation <- read.csv('https://raw.githubusercontent.com/nobieyi00/CUNY_DATA621/master/moneyball-evaluation-data.csv')
+evaluation$TEAM_BATTING_1B <-evaluation$TEAM_BATTING_H - (evaluation$TEAM_BATTING_2B+evaluation$TEAM_BATTING_3B+evaluation$TEAM_BATTING_HR)
+evaluation$TARGET_WINS<- predict(fit1.2, evaluation)
+head(evaluation)
+
+write.csv(evaluation, file = "C:/Users/Mezu/Documents/Data621/eval_results.csv")
+```
+
+The result or the prediction result of model can be found here
+https://github.com/nobieyi00/CUNY_DATA621/blob/master/eval_results.csv
+
+Appendix
+
+Rmarkdown code can be found in github
+https://github.com/nobieyi00/CUNY_DATA621/blob/master/PROJ1.csv
+
+REFERENCES
+https://www.statmethods.net/stats/regression.html
+http://analyticspro.org/2016/03/15/r-tutorial-how-to-interpret-f-statistic-in-regression-models/
