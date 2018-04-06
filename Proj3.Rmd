@@ -1,0 +1,499 @@
+---
+title: "Project 3"
+author: "Nnaemezue Obi-Eyisi"
+date: "March 30, 2018"
+output: html_document
+---
+#BUILDING A BINARY LOGISTIC REGRESSION MODEL TO PREDICT WHETHER A NEIGHBOORHOOD WILL BE AT RISK FOR HIGH CRIME LEVELS
+
+#INTRODUCTION
+
+The goal of this project is to explore, analyze and model the data set containing Information on crime for various neighborhoods in a major city, then we would create a binary logicistic regression model to predict whether a neighboorhood will be at risk for high crime levels.  This dataset contains about 12 predictor variables, for one target dependent variable.
+The plan is to use a Logit model for regression  analysis
+
+#DATA EXPLORATION
+
+First we import data and split it into tain and test set 
+
+```{r import_data, echo=FALSE}
+
+data <- read.csv("https://raw.githubusercontent.com/nobieyi00/CUNY_DATA621/master/crime-training-data_modified.csv", header= TRUE)
+
+train <- data[1:372,]
+test <- data[373:466,]
+```
+
+We would start off by doing some summary statistics on the data.
+
+```{r summary_data, echo=FALSE}
+# Insert your code here, create more chunks as necessary
+if(!(c("psych") %in% rownames(installed.packages()))) {install.packages('psych')}
+library(psych)
+describe(train)
+
+```
+
+
+Let's investigate the skew of certain variables with high skew values using histogram plots
+```{r soned_hist, echo=FALSE}
+layout(matrix(c(1,2,3,4,5,6),2,3)) 
+hist(train$zn)#box cox
+hist(train$chas)#box cox
+hist(train$dis)#log transformation
+hist(train$rad)#binning
+hist(train$lstat)#log transformation
+hist(train$medv)#log transformation
+
+```
+
+
+We notice that there are 466 variables, with most predictors normally distributed. The six variables in histogram plot above are candidates for transformation because of their skewness. Now let's consider the summary statistics. Let's find out if there are any missing values
+
+
+```{r summary_missing_data, echo=FALSE}
+summary(train)
+```
+We notice here that there isn't any missing values in these set of variables.
+Analyzing the Target response varable shows that 49% of the data points have a crime rate above median crime rate
+
+Let's find out how the predictor variables are correlated with the response variable, seeing if it correlates with our assumptions and also check how they are correlated with each other.
+
+```{r correlation_analysis, echo=FALSE}
+library(ggplot2)
+#install.packages('gridExtra')
+library(gridExtra)
+# Basic box plot
+
+p1 <- ggplot(train, aes(x=target, y=zn)) + 
+  geom_boxplot(aes(group = cut_width(target, 0.5)))
+
+
+p2<- ggplot(train, aes(x=target, y=indus )) + 
+  geom_boxplot(aes(group = cut_width(target, 0.5)))
+
+p3<- ggplot(train, aes(x=target, y=chas )) + 
+  geom_boxplot(aes(group = cut_width(target, 0.5)))
+p4<- ggplot(train, aes(x=target, y=nox )) + 
+  geom_boxplot(aes(group = cut_width(target, 0.5)))
+p5<- ggplot(train, aes(x=target, y=rm )) + 
+  geom_boxplot(aes(group = cut_width(target, 0.5)))
+p6<- ggplot(train, aes(x=target, y=age )) + 
+  geom_boxplot(aes(group = cut_width(target, 0.5)))
+p7<- ggplot(train, aes(x=target, y=dis )) + 
+  geom_boxplot(aes(group = cut_width(target, 0.5)))
+p8<- ggplot(train, aes(x=target, y=rad )) + 
+  geom_boxplot(aes(group = cut_width(target, 0.5)))
+p9<- ggplot(train, aes(x=target, y=tax )) + 
+  geom_boxplot(aes(group = cut_width(target, 0.5)))
+p10<- ggplot(train, aes(x=target, y=ptratio  )) + 
+  geom_boxplot(aes(group = cut_width(target, 0.5)))
+p11<- ggplot(train, aes(x=target, y=lstat )) + 
+  geom_boxplot(aes(group = cut_width(target, 0.5)))
+p12<- ggplot(train, aes(x=target, y=medv )) + 
+  geom_boxplot(aes(group = cut_width(target, 0.5)))
+grid.arrange(p1, p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12 ,nrow = 4)
+```
+
+zn - More likely to have below average crime rate with increase in proportion of residential land zoned for large lots (outliers yes)            
+indus - More likely to have above average crime rate with increase in  proportion of non-retail business acres per suburb   (outliers yes)          
+nox  -  More likely to have above average crime rate with increase in  nitrogen oxides concentration (parts per 10 million)           
+rm - More likely to have below average crime rate with increase in average number of rooms per dwelling,though we see a lot of outliers in this case 
+age - More likely to have above average crime rate with increase in proportion of owner-occupied units built prior to 1940   (outliers yes)               
+dis - More likely to have below average crime rate with increase in weighted mean of distances to five Boston employment centers
+rad - More likely to have above average crime rate with increase in index of accessibility to radial highways                 
+tax - More likely to have above average crime rate with increase in full-value property-tax rate per $10,000
+ptratio - More likely to have above average crime rate with increase in pupil-teacher ratio by town  (outliers yes)       
+lstat -  More likely to have above average crime rate with increase in  lower status of the population (percent)  (outliers yes)      medv - More likely to have below average crime rate with increase in median value of owner-occupied homes in $1000s 
+
+
+From my analysis, i am not sure that I agree with the correlation between the tax predictor and crime rate. I normally  think that high property tax rate towns are safer due to their close to school districts and attract very high income persons.
+Same goes for the ptratio predictor, I would guess that the higher the pupil teacher ratio is the lesser the crime rate because those places are normally for the affluent individuals/families
+Also, I find it hard to believe that placess with a high average number of rooms per dwelling which normally implies more people livingin an area has a below average crime rate.
+We would investigate these 3 variables further to see why they go contrary to my assumptions.
+
+The only variable we couldn't analyze using box plots is the chas predictor. We will use confusion matrix to do that below
+```{r chas_var_analysis, echo=FALSE}
+table("Target"=train$target, "Chas"=train$chas)
+
+```
+We notice that for the towns that share borders with the Charles river there is a higher probability of increased crime rate while those towns that do not border the river has a high probability of reduced crime rate.
+
+
+
+```{r collinearity, echo=FALSE}
+drops1 <- c("target","chas")
+train2a =train[ , !(names(train) %in% drops1)]
+#cor(train2a)
+layout(matrix(c(1,2,3,4,5,6,7,8,9,10,11,12,13),3,4))
+plot(train$dis,train$zn)
+plot(train$nox,train$indus)
+plot(train$age,train$indus)
+plot(train$tax,train$indus)
+plot(train$nox,train$age)
+plot(train$nox,train$dis)
+plot(train$nox,train$tax)
+plot(train$rm,train$medv)
+plot(train$rm,train$lstat)
+plot(train$dis,train$age)
+plot(train$dis,train$indus)
+plot(train$medv,train$lstat)
+plot(train$rad,train$tax)
+```
+
+We notice that some variables like nox and dis, lstat and rm, medv and lstat, nox and age, have quadratic relationships with each other
+
+while rm and medv seems to have some linear relationship
+
+
+#DATA PREPARATION 
+
+Let's try an fit the model with the glm function to see which predictors are candidates for transformation.
+
+
+```{r model_fit, echo=FALSE}
+
+#install.packages('car')
+library(car)
+model <- glm(target ~ ., data = train, family = binomial(link = "logit"))
+
+summary(model)
+
+```
+We notice right away that the variables below are the most insignificant in descending order
+
+rm
+lstat
+chas
+indus
+zn
+
+Let's us study the marginal model plots of this variables below. We use marginal model plots in this case rather than residuals because they are easier to interpret.
+
+```{r marginal_model, echo=FALSE}
+#plot(model)
+mmps(model)
+mmps(model, terms= ~rm)
+mmps(model, terms= ~indus)
+```
+
+Based on Marginal model plots of the variables in the model, we notice that rm and indus predictors do not fit well with the loess estimates.
+
+We should transform these variables. Let's transform rm till it is significant
+```{r}
+model2<- glm(formula = target ~ zn + indus + chas + nox + I(rm^-3) + age + 
+    dis + rad + tax + ptratio + lstat + medv, family = binomial(link = "logit"), 
+    data = train)
+summary(model2)
+
+mmps(model2, terms= ~rm)
+mmps(model, terms= ~indus)
+
+```
+After trying various transformations it looks like rm predictor becomes significant with an inverse quadratic relationship with reponse variable. We also confirm one of our findings earlier that lstat and rm  has a quadratic relationship.
+
+Let's recheck the marginal model plot of rm predictor and it looks like a better fit.
+
+Let's now introduce an interacting with lstat and tax, since they are collinear with some quadratic relationship
+
+```{r}
+model3<- glm(formula = target ~ zn + indus + chas + nox + I(rm^-3) + age + 
+    dis + rad + tax + ptratio + lstat:tax + lstat + medv, family = binomial(link = "logit"), 
+    data = train)
+summary(model3)
+
+
+```
+
+```{r}
+model4<- glm(formula = target ~ I(zn^0.03) + I(indus^3) + chas + nox + rm + age + 
+    dis + rad + tax + ptratio  + lstat + medv, family = binomial(link = "logit"), 
+    data = train)
+summary(model4)
+```
+
+
+
+
+#BUILD MODEL
+
+In building a model, we would first analyze the null model without any transformations and see how it performs.
+Since we do not have much variables we would go for the compare probit and logit binomial distribution options in glm function
+```{r}
+null_model <- glm(formula = target ~ ., family = binomial(link = "probit"), 
+    data = train)
+summary(null_model)
+null_model <- glm(formula = target ~ ., family = binomial(link = "logit"), 
+    data = train)
+summary(null_model)
+```
+From our analysis it looks like logit is better because it has a lower AIC and more significant variables in general.
+
+We notice that certain predictors are not significant. they are zn, indus, chas,rm, lstat.
+
+for this null model let's analyze the null deviance and residual deviance. The wider the gap the better
+```{r}
+anova(null_model)
+```
+
+Now lets' go further and analyze the McFadden Rsquared which will tell us the goodness of fit for a logistic regression
+```{r}
+#install.packages('pscl')
+library(pscl)
+pR2(null_model)
+```
+
+The McFadden R-squared is 0.6902 which is not bad, but we need to do better because we have a lot of insignifcant variables
+
+
+Trail 2
+Let's introduce the transformed variables we got in the Data Preparation step
+```{r}
+model2<- glm(formula = target ~ I(zn^0.03) + I(indus^3) + chas + nox + I(rm^-3) + age + 
+    dis + rad + tax + ptratio + lstat + medv, family = binomial(link = "logit"), 
+    data = train)
+summary(model2)
+
+model3<- glm(formula = target ~ I(zn^0.03) + I(indus^3) + chas + nox + I(rm^-3) + age + 
+    dis + rad + tax + ptratio  +lstat+ medv + lstat:tax, family = binomial(link = "logit"), 
+    data = train)
+summary(model3)
+#drop lstat
+model4<- glm(formula = target ~ I(zn^0.03) + I(indus^3) + chas + nox + I(rm^-3) + age + 
+    dis + rad + tax + ptratio  + medv , family = binomial(link = "logit"), 
+    data = train)
+summary(model4)
+
+#add interaction
+model5<- glm(formula = target ~ zn + indus + chas + nox + I(rm^-3) + age + 
+    dis + rad + tax + ptratio  + medv+ zn:age , family = binomial(link = "logit"), 
+    data = train)
+summary(model5)
+
+#add interaction, remove chas
+model6<- glm(formula = target ~ I(zn^0.03) + indus +  + nox + rm + age + 
+    dis + rad + tax + ptratio  + medv+ lstat, family = binomial(link = "logit"), 
+    data = train)
+summary(model6)
+
+#add interaction, remove chas
+model7<- glm(formula = target ~ I(zn^0.03) + I(indus^3)   + nox + rm + age + 
+    dis + rad + tax + ptratio  + medv+ lstat+rm:medv, family = binomial(link = "logit"), 
+    data = train)
+summary(model7)
+
+#add interaction, remove chas
+model8<- glm(formula = target ~ I(zn^0.03) + I(indus^6)   + nox + I(rm^-3) + age + 
+    dis + rad + log(tax) + ptratio  + medv+lstat+lstat:tax, family = binomial(link = "logit"), 
+    data = train)
+summary(model8)
+
+#add interaction, remove chas
+model9<- glm(formula = target ~  I(indus^5)   + nox + I(rm^-3) + age + 
+    dis + rad + log(tax) + ptratio  + medv+lstat+lstat:tax, family = binomial(link = "logit"), 
+    data = train)
+summary(model9)
+```
+```{r}
+pR2(model2)
+pR2(model3)
+pR2(model4)
+pR2(model5)
+pR2(model6)
+pR2(model7)
+pR2(model8)
+pR2(model9)
+```
+When I analyzed the different models I pick the top 4 models because of high McFadden and low AIC
+
+We pick model3, model5, model8 and model9. 
+We also analyzed various significance levels of predictors
+
+
+Model3
+
+In this model we decided to transform the zn predictor by raising it to a power of 0.03. We suspected that it had a non linear relationship with our target response.
+
+We also transformed the indus predictor by raising it to a power of 3, because of it's non linear behaviour.
+
+We also transformed the rm predictor to it's quadratic inverse because we noticed that it became significant with that transformation.
+
+We then introduced an interaction lstat:tax
+The presence of this significant lstat:tax interaction indicates that the effect of one lstat variable on the crime rate response variable is different at different values of the tax predictor variable
+
+This presence of interaction complicates the interpretation of our model coefficients
+
+From the results of the coefficients of the predictors, we notice that for the negative coefficients it means that if the proportion of residential land zoned for large lots is high then it is less likely to have a high crime rate in that region  at different values of the lower status of population
+
+Also we analyze the exponential of the model coefficients which gives us the odds ratio. We know the odds ratio greater than 1 implies that the outcome of a neighborhood to have a higher crime rate than average is more likely than the outcome of a neighboorhood to a below average crime rate
+
+We notice some very influential predictors like rm^-3 that has the coefficient as infinity which means that probability is 1 for a rm^-3 predictor or the odds of a crime rate higher than average is infinite increased for one unit change in the rm^-3 predictor while the interaction terms changes per unit
+
+
+Also note that the only two variables that were insignificant were the transformed I(zn^0.03) and chas
+Analyzing the marginal model plot for this model shows that indus predictor has a deviation from the loess estimate, but it is manageable
+```{r}
+
+model3<- glm(formula = target ~ I(zn^0.03) + I(indus^3) + chas + nox + I(rm^-3) + age + 
+    dis + rad + tax + ptratio  +lstat+ medv + lstat:tax, family = binomial(link = "logit"), 
+    data = train)
+summary(model3)
+exp(model3$coefficients)
+pR2(model3)
+mmps(model3)
+```
+
+Model5
+
+
+In this model transformed the rm predictor to it's quadratic inverse (-3) because we noticed that it became significant with that transformation.
+
+We then introduced an interaction zn:age
+The presence of this significant zn:age interaction indicates that the effect of zn( proportion of residential land zoned for large lots ) variable on the crime rate response variable is different at different values of the age (proportion of owner-occupied units built prior to 1940 ) predictor variable
+
+This presence of interaction complicates the interpretation of our model coefficients
+
+From the results of the coefficients of the predictors, we notice that for the negative coefficients it means that if the proportion of residential land zoned for large lots is high then it is less likely to have a high crime rate in that region  at different values of the age proportion of owner-occupied units built prior to 1940 
+
+Also we analyze the exponential of the model coefficients which gives us the odds ratio. We know the odds ratio greater than 1 implies that the outcome of a neighborhood to have a higher crime rate than average is more likely than the outcome of a neighboorhood to a below average crime rate
+
+We notice some very influential predictors like rm^-3 that has the coefficient as infinity which means that probability is 1 for a rm^-3 predictor or the odds of a crime rate higher than average is infinite increased for one unit change in the rm^-3 predictor while the interaction terms changes per unit
+
+In this model most of the coefficients aligned to my theoritical understanding of the predictors. However, it is interesting to know that tax predictor has a negative coefficient. This means as the full-value property-tax rate per $10,000 the crime rate is less likely considering the interaction between zn and age. 
+
+Also in this model we dropped lstat variable because it is highly insignificant.
+
+In this model the marginal model plots looks good as we check for overfitting however, the indus predictor shows a bit of deviation from the loess estimator
+
+
+```{r}
+
+#add interaction
+model5<- glm(formula = target ~ zn + indus + chas + nox + I(rm^-3) + age + 
+    dis + rad + tax + ptratio  + medv+ zn:age , family = binomial(link = "logit"), 
+    data = train)
+summary(model5)
+exp(model5$coefficients)
+pR2(model5)
+mmps(model5)
+```
+
+Model8
+
+
+In this model transformed the rm predictor to it's quadratic inverse (-3) because we noticed that it became significant with that transformation. We also took log of the tax predictor to make it significant
+
+We dropped chas predictor because it is insignificant. Notice zn predictor is also not significant
+
+We then introduced an interaction lstat:tax and dropped the chas predictor 
+The presence of this significant lstat:tax interaction indicates that the effect of lstat( lower status of the population (percent ) variable on the crime rate response variable is different at different values of the tax (full-value property-tax rate per $10,000 ) predictor variable
+
+This presence of interaction complicates the interpretation of our model coefficients
+
+From the results of the coefficients of the predictors, we notice that for the negative coefficients it means that if the proportion of residential land zoned for large lots is high then it is less likely to have a high crime rate in that region  at different values of the age proportion of owner-occupied units built prior to 1940 
+
+Also we analyze the exponential of the model coefficients which gives us the odds ratio. We know the odds ratio greater than 1 implies that the outcome of a neighborhood to have a higher crime rate than average is more likely than the outcome of a neighboorhood to a below average crime rate
+
+We notice some very influential predictors like rm^-3 that has the coefficient as infinity which means that probability is 1 for a rm^-3 predictor or the odds of a crime rate higher than average is infinite increased for one unit change in the rm^-3 predictor while the interaction terms changes per unit
+
+In this model most of the coefficients aligned to my theoritical understanding of the predictors. 
+
+THe main issue with this model is that even though it has high McFadden Rsquared and lower AIC, it overfits with the indus predictor.
+
+
+
+```{r}
+
+#add interaction
+#add interaction, remove chas
+model8<- glm(formula = target ~ I(zn^0.03) + I(indus^6)   + nox + I(rm^-3) + age + 
+    dis + rad + log(tax) + ptratio  + medv+lstat+lstat:tax, family = binomial(link = "logit"), 
+    data = train)
+summary(model8)
+exp(model8$coefficients)
+pR2(model8)
+mmps(model8)
+```
+
+Model9
+
+
+In this model transformed the rm predictor to it's quadratic inverse (-3) because we noticed that it became significant with that transformation. We also took log of the tax predictor to make it significant.
+
+We also dropped two predictors chas and zn because they are not significant
+
+We then introduced an interaction lstat:tax and dropped the chas predictor 
+The presence of this significant lstat:tax interaction indicates that the effect of lstat( lower status of the population (percent ) variable on the crime rate response variable is different at different values of the tax (full-value property-tax rate per $10,000 ) predictor variable
+
+This presence of interaction complicates the interpretation of our model coefficients
+
+From the results of the coefficients of the predictors, we notice that for the negative coefficients it means that if the proportion of residential land zoned for large lots is high then it is less likely to have a high crime rate in that region  at different values of the age proportion of owner-occupied units built prior to 1940 
+
+Also we analyze the exponential of the model coefficients which gives us the odds ratio. We know the odds ratio greater than 1 implies that the outcome of a neighborhood to have a higher crime rate than average is more likely than the outcome of a neighboorhood to a below average crime rate
+
+We notice some very influential predictors like rm^-3 that has the coefficient as infinity which means that probability is 1 for a rm^-3 predictor or the odds of a crime rate higher than average is infinite increased for one unit change in the rm^-3 predictor while the interaction terms changes per unit
+
+In this model most of the coefficients aligned to my theoritical understanding of the predictors. 
+
+THe main issue with this model is that even though it has high McFadden Rsquared and lower AIC, it overfits with the indus predictor.
+But it seems better than model 8
+
+
+```{r}
+
+#add interaction
+#add interaction, remove chas
+model9<- glm(formula = target ~  I(indus^4)   + nox + I(rm^-3) + age + 
+    dis + rad + log(tax) + ptratio  + medv+lstat+lstat:tax, family = binomial(link = "logit"), 
+    data = train)
+summary(model9)
+exp(model9$coefficients)
+pR2(model9)
+#mmps(model9)
+```
+
+SELECT MODELS
+
+In choosing a criteria for model selection out of the top 4 models, I would examine their AIC values,deviance, marginal model plots, McFadden Rsquared, and significance of predictors.
+
+I decided to go with model 3 because it has a reasonable AIC even though it was the lowest. It had McFadden Rsquare which was high this was one of the decent ones is selected models. I also noticed this model has the best residuals vs fitted values(marginal model plots) We didn't have a variable that the marginal model plots was not fitted. We also analyzed significance. Importantly most of variables corresponded to my theoritical assumption.
+
+Let's do analysis this model and check it's performance
+
+```{r}
+suppressMessages(library(dplyr))
+suppressMessages(library(ggplot2))
+suppressMessages(library(caret))
+suppressMessages(library(e1071))
+suppressMessages(library(pROC))
+
+fitted.results <- predict(model3,newdata=test,type='response')
+fitted.results <- ifelse(fitted.results > 0.5,1,0)
+test['predicted'] <- fitted.results
+confusionMatrix(test$predicted, test$target, positive = "1")
+
+#install.packages('ROCR')
+library(ROCR)
+p <- predict(model3, newdata=test, type="response")
+pr <- prediction(p, test$target)
+prf <- performance(pr, measure = "tpr", x.measure = "fpr")
+plot(prf)
+
+auc <- performance(pr, measure = "auc")
+auc <- auc@y.values[[1]]
+auc
+```
+
+We can see that accuracy is one of the highest out of all models tested. It is also high in general 0.9574
+
+##Evaluating model with Eval data set
+
+```{r model_results , echo=FALSE}
+evaluation <- read.csv('https://raw.githubusercontent.com/nobieyi00/CUNY_DATA621/master/crime-evaluation-data_modified.csv')
+
+fitted.results_ev <- predict(model3,newdata=evaluation,type='response')
+fitted.results_ev <- ifelse(fitted.results_ev > 0.5,1,0)
+evaluation['predicted'] <- fitted.results_ev
+head(evaluation)
+
+write.csv(evaluation, file = "C:/Users/Mezu/Documents/Data621/crime_eval_results.csv")
+```
